@@ -1,0 +1,688 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "CloudFormation template for Cost and Usage Report",
+    "Metadata": {
+        "CloudFormationStackName": "EloquaDataTransfer-<environmentname>"
+    },
+    "Parameters": {
+        "BillingEnvironmentName": {
+            "AllowedPattern": "[a-zA-Z0-9]*",
+            "Default": "dev",
+            "Description": "The target environment in which the stack is being created",
+            "MinLength": 2,
+            "Type": "String"
+        },
+        "deploymentRole": {
+            "Description": "The target environment in which the stack is being created",
+            "Type": "String"
+        },
+        "GlueJobCodeBucket": {
+            "Type": "String",
+            "Description": "The S3 bucket for Glue job scripts"
+        }
+    },
+    "Mappings": {
+        "General": {
+            "Tags": {
+                "FinanceActivityId": "8000",
+                "FinanceEntityId": "0092",
+                "FinanceManagementCentreId": "99440",
+                "JiraProjectCode": "RDL",
+                "PmProgramme": "platform",
+                "PmProjectCode": "n/a"
+            },
+            "Attributes": {
+                "GlueJobCodeBucket": "rx-gbs-datalake-processingzone-${BillingEnvironmentName}"
+            }
+        }
+    },
+    "Resources": {
+        "EloquaDatabase": {
+            "Type": "AWS::Glue::Database",
+            "Properties": {
+                "DatabaseInput": {
+                    "Name": {
+                        "Fn::Sub": "eloquadb_${BillingEnvironmentName}"
+                    }
+                },
+                "CatalogId": {
+                    "Ref": "AWS::AccountId"
+                }
+            }
+        },
+        "EloquaGlueJobRole": {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
+                "RoleName": {
+                    "Fn::Sub": "EloquaGlueJobRole-${BillingEnvironmentName}"
+                },
+                "ManagedPolicyArns": [
+                    "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
+                ],
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": [
+                                    "glue.amazonaws.com"
+                                ]
+                            },
+                            "Action": [
+                                "sts:AssumeRole"
+                            ]
+                        }
+                    ]
+                },
+                "Path": "/",
+                "Policies": [
+                    {
+                        "PolicyName": {
+                            "Fn::Sub": "EloquaS3FullAccess-${BillingEnvironmentName}"
+                        },
+                        "PolicyDocument": {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Action": "s3:*",
+                                    "Resource": [
+                                        {
+                                            "Fn::Join": [
+                                                "",
+                                                [
+                                                    "arn:aws:s3:::",
+                                                    {
+                                                        "Fn::ImportValue": {
+                                                            "Fn::Sub": "rawzone-bucket-${BillingEnvironmentName}"
+                                                        }
+                                                    }
+                                                ]
+                                            ]
+                                        },
+                                        {
+                                            "Fn::Join": [
+                                                "",
+                                                [
+                                                    "arn:aws:s3:::",
+                                                    {
+                                                        "Fn::ImportValue": {
+                                                            "Fn::Sub": "rawzone-bucket-${BillingEnvironmentName}"
+                                                        }
+                                                    },
+                                                    "/Eloqua",
+                                                    "/*"
+                                                ]
+                                            ]
+                                        },
+                                        {
+                                            "Fn::Join": [
+                                                "",
+                                                [
+                                                    "arn:aws:s3:::",
+                                                    {
+                                                        "Fn::ImportValue": {
+                                                            "Fn::Sub": "processingzone-bucket-${BillingEnvironmentName}"
+                                                        }
+                                                    }
+                                                ]
+                                            ]
+                                        },
+                                        {
+                                            "Fn::Join": [
+                                                "",
+                                                [
+                                                    "arn:aws:s3:::",
+                                                    {
+                                                        "Fn::ImportValue": {
+                                                            "Fn::Sub": "processingzone-bucket-${BillingEnvironmentName}"
+                                                        }
+                                                    },
+                                                    "/*"
+                                                ]
+                                            ]
+                                        },
+                                        {
+                                            "Fn::Join": [
+                                                "",
+                                                [
+                                                    "arn:aws:s3:::",
+                                                    {
+                                                        "Fn::ImportValue": {
+                                                            "Fn::Sub": "landingzone-bucket-${BillingEnvironmentName}"
+                                                        }
+                                                    }
+                                                ]
+                                            ]
+                                        },
+                                        {
+                                            "Fn::Join": [
+                                                "",
+                                                [
+                                                    "arn:aws:s3:::",
+                                                    {
+                                                        "Fn::ImportValue": {
+                                                            "Fn::Sub": "landingzone-bucket-${BillingEnvironmentName}"
+                                                        }
+                                                    },
+                                                    "/Eloqua",
+                                                    "/*"
+                                                ]
+                                            ]
+                                        }
+                                    ],
+                                    "Effect": "Allow"
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "glue:GetDatabases",
+                                        "glue:GetDatabase",
+                                        "glue:GetTables",
+                                        "glue:GetPartitions",
+                                        "glue:GetPartition",
+                                        "glue:GetTable",
+                                        "glue:UpdateDatabase",
+                                        "glue:UpdatePartition",
+                                        "glue:CreateTable",
+                                        "glue:UpdateTable",
+                                        "glue:ImportCatalogToGlue"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Fn::Join": [
+                                                "",
+                                                [
+                                                    "arn:aws:s3:::",
+                                                    {
+                                                        "Fn::ImportValue": {
+                                                            "Fn::Sub": "rawzone-bucket-${BillingEnvironmentName}"
+                                                        }
+                                                    }
+                                                ]
+                                            ]
+                                        },
+                                        {
+                                            "Fn::Join": [
+                                                "",
+                                                [
+                                                    "arn:aws:s3:::",
+                                                    {
+                                                        "Fn::ImportValue": {
+                                                            "Fn::Sub": "rawzone-bucket-${BillingEnvironmentName}"
+                                                        }
+                                                    },
+                                                    "/Eloqua",
+                                                    "/*"
+                                                ]
+                                            ]
+                                        }
+                                    ]
+                                },
+                                {
+                                    "Action": [
+                                        "kms:DescribeKey",
+                                        "kms:GenerateDataKey",
+                                        "kms:Decrypt",
+                                        "kms:Encrypt"
+                                    ],
+                                    "Resource": [
+                                        {
+                                            "Fn::ImportValue": {
+                                                "Fn::Sub": "raw-zone-kms-key-arn-${BillingEnvironmentName}"
+                                            }
+                                        },
+                                        {
+                                            "Fn::ImportValue": {
+                                                "Fn::Sub": "processing-zone-kms-key-arn-${BillingEnvironmentName}"
+                                            }
+                                        },
+                                        {
+                                            "Fn::ImportValue": {
+                                                "Fn::Sub": "landing-zone-kms-key-arn-${BillingEnvironmentName}"
+                                            }
+                                        }
+                                    ],
+                                    "Effect": "Allow"
+                                },
+                                {
+                                    "Action": [
+                                        "lakeformation:get*",
+                                        "lakeformation:List*",
+                                        "lakeformation:Describe*"
+                                    ],
+                                    "Resource": "*",
+                                    "Effect": "Allow"
+                                }
+
+                            ]
+                        }
+                    }
+                ],
+                "Tags": [
+                    {
+                        "Key": "Name",
+                        "Value": "rx-gbs-datalake-eloqua-role"
+                    },
+                    {
+                        "Key": "rx:billing:finance-activity-id",
+                        "Value": {
+                            "Fn::FindInMap": [
+                                "General",
+                                "Tags",
+                                "FinanceActivityId"
+                            ]
+                        }
+                    },
+                    {
+                        "Key": "rx:billing:finance-entity-id",
+                        "Value": {
+                            "Fn::FindInMap": [
+                                "General",
+                                "Tags",
+                                "FinanceEntityId"
+                            ]
+                        }
+                    },
+                    {
+                        "Key": "rx:billing:finance-management-centre-id",
+                        "Value": {
+                            "Fn::FindInMap": [
+                                "General",
+                                "Tags",
+                                "FinanceManagementCentreId"
+                            ]
+                        }
+                    },
+                    {
+                        "Key": "rx:billing:jira-project-code",
+                        "Value": {
+                            "Fn::FindInMap": [
+                                "General",
+                                "Tags",
+                                "JiraProjectCode"
+                            ]
+                        }
+                    },
+                    {
+                        "Key": "rx:billing:pm-programme",
+                        "Value": {
+                            "Fn::FindInMap": [
+                                "General",
+                                "Tags",
+                                "PmProgramme"
+                            ]
+                        }
+                    },
+                    {
+                        "Key": "rx:billing:pm-project-code",
+                        "Value": {
+                            "Fn::FindInMap": [
+                                "General",
+                                "Tags",
+                                "PmProjectCode"
+                            ]
+                        }
+                    },
+                    {
+                        "Key": "rx:billing:environment-name",
+                        "Value": {
+                            "Ref": "BillingEnvironmentName"
+                        }
+                    }
+                ]
+            }
+        },
+        "EloquaOneOffJob": {
+            "Type": "AWS::Glue::Job",
+            "DependsOn": [
+                "EloquaDatabase",
+                "EloquaGlueJobRole"
+            ],
+            "Properties": {
+                "Command": {
+                    "Name": "glueetl",
+                    "ScriptLocation": {
+                        "Fn::Sub": "s3://${GlueJobCodeBucket}/eloqua/scripts/eloqua_oneoff_job.py"
+                    },
+                    "PythonVersion": "3"
+                },
+                "GlueVersion": "4.0",
+                "DefaultArguments": {
+                    "--job-bookmark-option": "job-bookmark-disable",
+                    "--enable-glue-datacatalog": "true",
+                    "--output_bucket_name": {
+                        "Fn::ImportValue": {
+                            "Fn::Sub": "rawzone-bucket-${BillingEnvironmentName}"
+                        }
+                    },
+                    "--source_db": {
+                        "Fn::Sub": "globaldb_raw_${BillingEnvironmentName}"
+                    },
+                    "--output_db": {
+                        "Ref": "EloquaDatabase"
+                    }
+                },
+                "WorkerType": "G.8X",
+                "NumberOfWorkers": 2,
+                "MaxRetries": 0,
+                "ExecutionProperty": {
+                    "MaxConcurrentRuns": 1
+                },
+                "Name": {
+                    "Fn::Sub": "EloquaOneOffJob_${BillingEnvironmentName}"
+                },
+                "Role": {
+                    "Ref": "EloquaGlueJobRole"
+                }
+            }
+        },
+        "EloquaIncrementalJob": {
+            "Type": "AWS::Glue::Job",
+            "DependsOn": [
+                "EloquaDatabase",
+                "EloquaGlueJobRole"
+            ],
+            "Properties": {
+                "Command": {
+                    "Name": "glueetl",
+                    "ScriptLocation": {
+                        "Fn::Sub": "s3://${GlueJobCodeBucket}/eloqua/scripts/eloqua_incremental_job.py"
+                    },
+                    "PythonVersion": "3"
+                },
+                "GlueVersion": "4.0",
+                "DefaultArguments": {
+                    "--job-bookmark-option": "job-bookmark-enable",
+                    "--enable-glue-datacatalog": "true",
+                    "--output_bucket_name": {
+                        "Fn::ImportValue": {
+                            "Fn::Sub": "rawzone-bucket-${BillingEnvironmentName}"
+                        }
+                    },
+                    "--input_bucket_name": {
+                        "Fn::ImportValue": {
+                            "Fn::Sub": "landingzone-bucket-${BillingEnvironmentName}"
+                        }
+                    },
+                    "--database_name": {
+                        "Ref": "EloquaDatabase"
+                    }
+                },
+                "WorkerType": "G.2X",
+                "NumberOfWorkers": 2,
+                "MaxRetries": 0,
+                "ExecutionProperty": {
+                    "MaxConcurrentRuns": 1
+                },
+                "Name": {
+                    "Fn::Sub": "EloquaIncrementalJob_${BillingEnvironmentName}"
+                },
+                "Role": {
+                    "Ref": "EloquaGlueJobRole"
+                }
+            }
+        },
+        "EloquaIncrementalJobTrigger": {
+            "Type": "AWS::Glue::Trigger",
+            "DependsOn": "EloquaIncrementalJob",
+            "Properties": {
+                "Type": "SCHEDULED",
+                "Description": "Trigger for Eloqua Incremental Job execution",
+                "Schedule": "cron(0 2 * * ? *)",
+                "Actions": [
+                    {
+                        "JobName": {
+                            "Ref": "EloquaIncrementalJob"
+                        }
+                    }
+                ],
+                "Name": {
+                    "Fn::Sub": "Eloqua-Incremental-Job-Trigger-${BillingEnvironmentName}"
+                }
+            }
+        },
+
+        "LakeFormationPermissionsForDeveloperGeneralEloquaDB": {
+            "Type": "AWS::LakeFormation::Permissions",
+            "DependsOn": "EloquaIncrementalJobTrigger",
+            "Properties": {
+                "DataLakePrincipal": {
+                    "DataLakePrincipalIdentifier": {
+                        "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/ADFS-DataDeveloperGeneral"
+                    }
+                },
+                "Permissions": [
+                    "ALL"
+                ],
+                "PermissionsWithGrantOption": [
+                    "ALL"
+                ],
+                "Resource": {
+                    "DatabaseResource": {
+                        "Name": {
+                            "Fn::Sub": "eloquadb_${BillingEnvironmentName}"
+                        }
+                    }
+                }
+            }
+        },
+        "LakeFormationPermissionsForDeveloperGeneralEloquaTables": {
+            "Type": "AWS::LakeFormation::Permissions",
+            "DependsOn": "EloquaIncrementalJobTrigger",
+            "Properties": {
+                "DataLakePrincipal": {
+                    "DataLakePrincipalIdentifier": {
+                        "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/ADFS-DataDeveloperGeneral"
+                    }
+                },
+                "Permissions": [
+                    "SELECT",
+                    "DESCRIBE",
+                    "ALTER"
+                ],
+                "PermissionsWithGrantOption": [
+                    "SELECT",
+                    "DESCRIBE",
+                    "ALTER"
+                ],
+                "Resource": {
+                    "TableResource": {
+                        "DatabaseName": {
+                            "Fn::Sub": "eloquadb_${BillingEnvironmentName}"
+                        },
+                        "TableWildcard": {
+
+                        }
+                    }
+                }
+            }
+        },
+        "LakeFormationPermissionsForEloquaGlueJobRoleEloquaDB": {
+            "Type": "AWS::LakeFormation::Permissions",
+            "DependsOn": "EloquaIncrementalJobTrigger",
+            "Properties": {
+                "DataLakePrincipal": {
+                    "DataLakePrincipalIdentifier": {
+                        "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/EloquaGlueJobRole-${BillingEnvironmentName}"
+                    }
+                },
+                "Permissions": [
+                    "ALL"
+                ],
+                "PermissionsWithGrantOption": [
+                    "ALL"
+                ],
+                "Resource": {
+                    "DatabaseResource": {
+                        "Name": {
+                            "Fn::Sub": "eloquadb_${BillingEnvironmentName}"
+                        }
+                    }
+                }
+            }
+        },
+        "LakeFormationPermissionsForEloquaGlueJobRoleEloquaTables": {
+            "Type": "AWS::LakeFormation::Permissions",
+            "DependsOn": "EloquaIncrementalJobTrigger",
+            "Properties": {
+                "DataLakePrincipal": {
+                    "DataLakePrincipalIdentifier": {
+                        "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/EloquaGlueJobRole-${BillingEnvironmentName}"
+                    }
+                },
+                "Permissions": [
+                    "SELECT",
+                    "DESCRIBE",
+                    "ALTER"
+                ],
+                "PermissionsWithGrantOption": [
+                    "SELECT",
+                    "DESCRIBE",
+                    "ALTER"
+                ],
+                "Resource": {
+                    "TableResource": {
+                        "DatabaseName": {
+                            "Fn::Sub": "eloquadb_${BillingEnvironmentName}"
+                        },
+                        "TableWildcard": {
+
+                        }
+                    }
+                }
+            }
+        },
+        "LakeFormationPermissionsForDataAdministratorEloquaDB": {
+            "Type": "AWS::LakeFormation::Permissions",
+            "DependsOn": "EloquaIncrementalJobTrigger",
+            "Properties": {
+                "DataLakePrincipal": {
+                    "DataLakePrincipalIdentifier": {
+                        "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/ADFS-DataAdministrator"
+                    }
+                },
+                "Permissions": [
+                    "ALL"
+                ],
+                "PermissionsWithGrantOption": [
+                    "ALL"
+                ],
+                "Resource": {
+                    "DatabaseResource": {
+                        "Name": {
+                            "Fn::Sub": "eloquadb_${BillingEnvironmentName}"
+                        }
+                    }
+                }
+            }
+        },
+        "LakeFormationPermissionsForDataAdministratorEloquaTables": {
+            "Type": "AWS::LakeFormation::Permissions",
+            "DependsOn": "EloquaIncrementalJobTrigger",
+            "Properties": {
+                "DataLakePrincipal": {
+                    "DataLakePrincipalIdentifier": {
+                        "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/ADFS-DataAdministrator"
+                    }
+                },
+                "Permissions": [
+                    "SELECT",
+                    "DESCRIBE",
+                    "ALTER"
+                ],
+                "PermissionsWithGrantOption": [
+                    "SELECT",
+                    "DESCRIBE",
+                    "ALTER"
+                ],
+                "Resource": {
+                    "TableResource": {
+                        "DatabaseName": {
+                            "Fn::Sub": "eloquadb_${BillingEnvironmentName}"
+                        },
+                        "TableWildcard": {
+
+                        }
+                    }
+                }
+            }
+        },
+        "LakeFormationPermissionsForEloquaGlueJobRoleGlobalDB": {
+            "Type": "AWS::LakeFormation::Permissions",
+            "DependsOn": "EloquaIncrementalJobTrigger",
+            "Properties": {
+                "DataLakePrincipal": {
+                    "DataLakePrincipalIdentifier": {
+                        "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/EloquaGlueJobRole-${BillingEnvironmentName}"
+                    }
+                },
+                "Permissions": [
+                    "ALL"
+                ],
+                "PermissionsWithGrantOption": [
+                    "ALL"
+                ],
+                "Resource": {
+                    "DatabaseResource": {
+                        "Name": {
+                            "Fn::Sub": "globaldb_raw_${BillingEnvironmentName}"
+                        }
+                    }
+                }
+            }
+        },
+        "LakeFormationPermissionsForEloquaGlueJobRoleGlobalDBTables": {
+            "Type": "AWS::LakeFormation::Permissions",
+            "DependsOn": "EloquaIncrementalJobTrigger",
+            "Properties": {
+                "DataLakePrincipal": {
+                    "DataLakePrincipalIdentifier": {
+                        "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/EloquaGlueJobRole-${BillingEnvironmentName}"
+                    }
+                },
+                "Permissions": [
+                    "SELECT",
+                    "DESCRIBE",
+                    "ALTER"
+                ],
+                "PermissionsWithGrantOption": [
+                    "SELECT",
+                    "DESCRIBE",
+                    "ALTER"
+                ],
+                "Resource": {
+                    "TableResource": {
+                        "DatabaseName": {
+                            "Fn::Sub": "globaldb_raw_${BillingEnvironmentName}"
+                        },
+                        "TableWildcard": {
+
+                        }
+                    }
+                }
+            }
+        },
+        "DataLocationPermissionsForGlueJobRoleOnRawZone": {
+            "Type": "AWS::LakeFormation::Permissions",
+            "DependsOn": "EloquaGlueJobRole",
+            "Properties": {
+                "DataLakePrincipal": {
+                    "DataLakePrincipalIdentifier": {
+                        "Fn::Sub": "arn:aws:iam::${AWS::AccountId}:role/EloquaGlueJobRole-${BillingEnvironmentName}"
+                    }
+                },
+                "Permissions": [
+                    "DATA_LOCATION_ACCESS"
+                ],
+                "Resource": {
+                    "DataLocationResource": {
+                        "S3Resource": {
+                            "Fn::Sub": "arn:aws:s3:::rx-gbs-datalake-rawzone-${BillingEnvironmentName}"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
